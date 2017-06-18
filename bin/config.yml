@@ -1,0 +1,16 @@
+#House Types
+types:
+  test:
+    levels:
+      '1':
+        schematic: test1
+        #time in minutes
+        time: 1
+        #blocks placed per iteration
+        blocks-placed: 5
+        items:
+        - ==: org.bukkit.inventory.ItemStack
+          type: WOOD
+          amount: 32
+        - ==: org.bukkit.inventory.ItemStack
+          type: GLASS
