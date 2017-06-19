@@ -25,4 +25,13 @@
     </plugins>
   </build>
   <name>HouseUpgrade</name>
+  <dependencyManagement>
+  	<dependencies>
+  		<dependency>
+  			<groupId>df</groupId>
+  			<artifactId>df</artifactId>
+  			<version>1</version>
+  		</dependency>
+  	</dependencies>
+  </dependencyManagement>
 </project>

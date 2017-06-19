@@ -60,14 +60,16 @@ public class HouseUpgradePlugin extends JavaPlugin{
 							House.houses.put(p.getName(), h);
 						}
 						
-						if(!h.isUpgrading()){
-							if(h.removeItemsToUpgrade(p)){
-								p.sendMessage("removed items for upgrade");
-							} else{
-								p.sendMessage("You dont have the required items");
-								return true;
+						if(h.hasNextLevel()){
+							if(!h.isUpgrading()){
+								if(h.removeItemsToUpgrade(p)){
+									p.sendMessage("removed items for upgrade");
+								} else{
+									p.sendMessage("You dont have the required items");
+									return true;
+								}
+								h.startUpgrading(h.getMaxPlacedBlocks(), h.getTimeForNextLevel(), true);
 							}
-							h.startUpgrading(h.getMaxPlacedBlocks(), h.getTimeForNextLevel(), true);
 						}
 					}
 				}
