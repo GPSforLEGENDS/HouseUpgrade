@@ -2,11 +2,10 @@ package xyz.gpsforlegends.houseupgrade;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
@@ -33,6 +32,8 @@ public class House implements ConfigurationSerializable{
 	
 	private int level;
 	
+	private long timeStarted;
+	
 	private String owner;
 	private String type;
 	
@@ -42,15 +43,10 @@ public class House implements ConfigurationSerializable{
 	private Vector remainingBlocks;
 	
 	//Only stores houses where the owner is online
-	public static ConcurrentHashMap<String, House> houses = new ConcurrentHashMap<>();
+	public static HashMap<String, House> houses = new HashMap<>();
 	
-	public House(String owner, String type, Location loc){
-		this.owner = owner;
-		this.type = type;
-		this.loc = loc;
-		upgrading = false;
-		level = 0;
-		remainingBlocks = new Vector(0, 0, 0);
+	public House(String owner, String type, Location loc){	
+		this(owner, type, loc, false);
 		
 		House.houses.put(owner, this);
 	}
@@ -59,71 +55,19 @@ public class House implements ConfigurationSerializable{
 		this.owner = owner;
 		this.type = type;
 		this.loc = loc;
-		this.upgrading = upgrading;
+		
 		level = 0;
 		remainingBlocks = new Vector(0, 0, 0);
+		timeStarted = 0;
+		
+		this.upgrading = upgrading;
 		
 		House.houses.put(owner, this);
 	}
 	
 	//Time in minutes
 	public void startUpgrading(int placedBlocks, int time, boolean skipAir){
-		
-		try {
-			cc = SchematicFormat.MCEDIT.load(getSchematicFile());
-		} catch (DataException | IOException e) {
-			e.printStackTrace();
-		}
-		
-		if(cc != null){
-			cc.setOrigin(new Vector(loc.getX(), loc.getY(), loc.getZ()));
-			
-			final EditSession es = new EditSession(new BukkitWorld(loc.getWorld()), Integer.MAX_VALUE);
-			es.setFastMode(true);
-			final Vector origin = new Vector(loc.getX(), loc.getY(), loc.getZ());
-			
-			new BukkitRunnable() {
-				
-				@Override
-				public void run() {
-					int i = 0;
-					while(i < placedBlocks){
-						if(remainingBlocks.getBlockX() >= cc.getWidth()){
-							if(remainingBlocks.getBlockZ() >= cc.getLength() - 1){
-								if(remainingBlocks.getBlockY() >= cc.getHeight() - 1){
-									remainingBlocks = remainingBlocks.setX(0);
-									remainingBlocks = remainingBlocks.setY(0);
-									remainingBlocks = remainingBlocks.setZ(0);
-									levelup();
-									cancel();
-								}
-								remainingBlocks = remainingBlocks.setY(remainingBlocks.getBlockY() + 1);
-								remainingBlocks = remainingBlocks.setZ(0);
-							}
-							remainingBlocks = remainingBlocks.setZ(remainingBlocks.getBlockZ() + 1);
-							remainingBlocks = remainingBlocks.setX(0);
-						}
-						BaseBlock bb = cc.getBlock(remainingBlocks);
-						
-						if(skipAir && bb.isAir()){
-							remainingBlocks = remainingBlocks.add(1, 0, 0);
-							continue;
-						}
-						
-						try {
-							es.setBlock(new Vector(remainingBlocks.getBlockX(), remainingBlocks.getBlockY(), remainingBlocks.getBlockZ()).add(origin), bb);
-						} catch (ArrayIndexOutOfBoundsException | MaxChangedBlocksException e) {
-							e.printStackTrace();
-						}
-	
-						remainingBlocks = remainingBlocks.add(1, 0, 0);
-						i++;
-					}
-				}
-			}.runTaskTimer(HouseUpgradePlugin.getInstance(), 1, calculatePeriod(placedBlocks, time, skipAir));
-			
-			upgrading = true;
-		}
+		startUpgrading(placedBlocks, time, skipAir, null);
 	}
 	
 	public void startUpgrading(int placedBlocks, int time, boolean skipAir, Vector offset){
@@ -141,7 +85,11 @@ public class House implements ConfigurationSerializable{
 			es.setFastMode(true);
 			final Vector origin = new Vector(loc.getX(), loc.getY(), loc.getZ());
 			
-			remainingBlocks = offset;
+			if(offset != null){
+				remainingBlocks = offset;
+			} else{
+				offset = remainingBlocks;
+			}
 			
 			new BukkitRunnable() {
 				
@@ -166,22 +114,22 @@ public class House implements ConfigurationSerializable{
 						}
 						BaseBlock bb = cc.getBlock(remainingBlocks);
 						
-						if(skipAir && bb.isAir()){
-							remainingBlocks = remainingBlocks.add(1, 0, 0);
-							continue;
-						}
-						
 						try {
 							es.setBlock(new Vector(remainingBlocks.getBlockX(), remainingBlocks.getBlockY(), remainingBlocks.getBlockZ()).add(origin), bb);
 						} catch (ArrayIndexOutOfBoundsException | MaxChangedBlocksException e) {
 							e.printStackTrace();
 						}
-	
+						
+						if(skipAir && bb.isAir()){
+							remainingBlocks = remainingBlocks.add(1, 0, 0);
+							continue;
+						}
+						
 						remainingBlocks = remainingBlocks.add(1, 0, 0);
 						i++;
 					}
 				}
-			}.runTaskTimer(HouseUpgradePlugin.getInstance(), 1, calculatePeriod(placedBlocks, time, skipAir, offset));
+			}.runTaskTimer(HouseUpgradePlugin.getInstance(), 1, calculatePeriod(placedBlocks, time, skipAir));
 			
 			upgrading = true;
 		}
@@ -191,6 +139,8 @@ public class House implements ConfigurationSerializable{
 		upgrading = false;
 		level++;
 		remainingBlocks = new Vector(0, 0, 0);
+		timeStarted = 0;
+		saveToFile();
 	}
 	
 	//Calculate how fast the blocks have to be placed. Returns -1 if no CuboidClipboard was found
@@ -255,7 +205,7 @@ public class House implements ConfigurationSerializable{
 			}
 			
 			if(cc != null){
-				long dif = System.currentTimeMillis() - HouseUpgradePlugin.getShutdownTime();
+				long dif = (System.currentTimeMillis() - HouseUpgradePlugin.getShutdownTime()) / 50;
 				
 				int placedBlocks = getMaxPlacedBlocks();
 				
@@ -332,6 +282,10 @@ public class House implements ConfigurationSerializable{
 		return true;
 	}
 	
+	public boolean hasNextLevel(){		
+		return HouseUpgradePlugin.getInstance().getConfig().contains("types." + type + ".levels." + (level + 1));
+	}
+	
 	@SuppressWarnings("unchecked")
 	public List<ItemStack> getItemsForNextLevel(){
 		return (List<ItemStack>) HouseUpgradePlugin.getInstance().getConfig().getList("types." + type + ".levels." + (level + 1) + ".items");
@@ -393,6 +347,10 @@ public class House implements ConfigurationSerializable{
 		result.put("vector.x", remainingBlocks.getBlockX());
 		result.put("vector.y", remainingBlocks.getBlockY());
 		result.put("vector.z", remainingBlocks.getBlockZ());
+		
+		if(timeStarted == 0){
+			result.put("time", System.currentTimeMillis());
+		}
 		return result;
 	}
 	
@@ -412,20 +370,29 @@ public class House implements ConfigurationSerializable{
 		h.level = level;
 		h.upgrading = upgrading;
 		h.remainingBlocks = new Vector(x, y, z);
-		
+		if(map.containsKey("time")){
+			h.timeStarted = (long) map.get("time");
+		} else{
+			h.timeStarted = 0;
+		}
 		return h;
 	}
 	
-	public static void loadFromFile(String owner){
+	
+	public static House loadFromFile(String owner){
 		File file = new File("plugins" + File.separator + "HouseUpgrade" + File.separator + "players", owner + ".yml");
 				
+		return House.loadFromFile(file);
+	}
+	
+	public static House loadFromFile(File file){
 		if(file != null && file.exists()){
 			YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(file);
 					
-			House h = (House) playerConfig.get("house");
-					
-			houses.put(owner, h);
+			return (House) playerConfig.get("house");
 		}
+		
+		return null;
 	}
 	
 	public void saveToFile(){
@@ -444,6 +411,24 @@ public class House implements ConfigurationSerializable{
 			playerConfig.save(file);
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+	}
+	
+	public static void updateAllHousesAfterRestart(){
+		File dir = new File("plugins" + File.separator + "HouseUpgrade" + File.separator + "players");
+		
+		File[] fileA = dir.listFiles();
+		
+		if(fileA != null){
+			for(File file : dir.listFiles()){
+				House h = House.loadFromFile(file);
+				
+				h.placeBlocksAfterRestart();
+				
+				if(h.isUpgrading()){
+					h.startUpgrading(h.getMaxPlacedBlocks(), h.getTimeForNextLevel(), true);
+				}
+			}
 		}
 	}
 

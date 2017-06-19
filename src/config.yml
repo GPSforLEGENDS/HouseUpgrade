@@ -14,3 +14,13 @@ types:
           amount: 32
         - ==: org.bukkit.inventory.ItemStack
           type: GLASS
+      '2':
+        schematic: test2
+        time: 5
+        blocks-placed: 5
+        items:
+        - ==: org.bukkit.inventory.ItemStack
+          type: WOOD
+          amount: 32
+        - ==: org.bukkit.inventory.ItemStack
+          type: GLASS

@@ -4,4 +4,4 @@ author: GPSforLEGENDS
 main: xyz.gpsforlegends.houseupgrade.HouseUpgradePlugin
 depend: [WorldEdit]
 commands:
-  test:
+  house:
