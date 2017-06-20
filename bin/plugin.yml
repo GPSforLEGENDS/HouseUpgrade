@@ -1,7 +1,0 @@
-name: HouseUpgrade
-version: 0.1
-author: GPSforLEGENDS
-main: xyz.gpsforlegends.houseupgrade.HouseUpgradePlugin
-depend: [WorldEdit]
-commands:
-  house:
